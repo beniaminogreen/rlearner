@@ -32,6 +32,7 @@ cvboost = function(x,
                    k_folds=NULL,
                    objective=c("reg:squarederror", "binary:logistic"),
                    ntrees_max=1000,
+                   cluster_id = cluster_id,
                    num_search_rounds=10,
                    print_every_n=100,
                    early_stopping_rounds=10,
@@ -66,6 +67,13 @@ cvboost = function(x,
     nthread = parallel::detectCores()
   }
 
+    if (!is.null(cluster_id)) {
+        unique_cluster_ids <- unique(cluster_id)
+    } else {
+        cluster_id <- 1:length(y)
+        unique_cluster_ids <- 1:length(y)
+    }
+
     for (iter in 1:num_search_rounds) {
       param <- list(objective = objective,
                     eval_metric = eval,
@@ -77,12 +85,20 @@ cvboost = function(x,
                     min_child_weight = sample(1:20, 1),
                     max_delta_step = sample(1:10, 1))
 
+
+      folds <- sample(1:k_folds,length(unique_cluster_ids), replace=T)
+      fold_list = list()
+      for (i in 1:k_folds) {
+          fold_list[[i]] <- which(cluster_id %in% unique_cluster_ids[which(folds == i)])
+      }
+
+
       seed_number = sample.int(100000, 1)[[1]]
       set.seed(seed_number)
       xgb_cv_args = list(data = dtrain,
                          param = param,
                          missing = NA,
-                         nfold = k_folds,
+                         folds = fold_list,
                          prediction = TRUE,
                          early_stopping_rounds = early_stopping_rounds,
                          maximize = FALSE,
